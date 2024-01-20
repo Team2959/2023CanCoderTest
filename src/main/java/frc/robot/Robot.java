@@ -71,13 +71,8 @@ public class Robot extends TimedRobot {
     SmartDashboard.putBoolean("Reset Relative Encoder", false);
 
     SmartDashboard.putNumber("Target Angle", 0);
-    SmartDashboard.putBoolean("Go To Target Angle", false);
-
-    SmartDashboard.putNumber("Rotation Speed",0);
 
     SmartDashboard.putBoolean("AE True/RE False", true);
-
-    SmartDashboard.putNumber("Change in Angle Position",0);
 
     SmartDashboard.putNumber("RE motor rotations to revolution", kSteerMotorRotationsPerRevolution);
   }

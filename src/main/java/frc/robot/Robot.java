@@ -31,6 +31,7 @@ public class Robot extends TimedRobot {
 
   private CANSparkMax m_steerMotor;
   private CANCoder m_steerAbsoluteEncoder;
+  // look at new REV Robotics documentation, some classes have been depricated
   private SparkMaxRelativeEncoder m_steerEncoder;
   private SparkMaxPIDController m_steerPIDController;
 
@@ -62,6 +63,38 @@ public class Robot extends TimedRobot {
     m_steerPIDController.setIZone(kSteerIZone);
 
     m_steerEncoder.setPositionConversionFactor(2 * Math.PI / kSteerMotorRotationsPerRevolution);
+
+	// From REV Robotics MAX Swerve template code
+    // // Enable PID wrap around for the turning motor. This will allow the PID
+    // // controller to go through 0 to get to the setpoint i.e. going from 350 degrees
+    // // to 10 degrees will go through 0 rather than the other direction which is a
+    // // longer route.
+    // m_turningPIDController.setPositionPIDWrappingEnabled(true);
+    // public static final double kTurningEncoderPositionFactor = (2 * Math.PI); // radians
+    // public static final double kTurningEncoderPositionPIDMinInput = 0; // radians
+    // public static final double kTurningEncoderPositionPIDMaxInput = kTurningEncoderPositionFactor; // radians
+    // m_turningPIDController.setPositionPIDWrappingMinInput(ModuleConstants.kTurningEncoderPositionPIDMinInput);
+    // m_turningPIDController.setPositionPIDWrappingMaxInput(ModuleConstants.kTurningEncoderPositionPIDMaxInput);
+
+	// Related MAX Swerve for steer offset adjustment and optimization
+	  // public SwerveModulePosition getPosition() {
+		// // Apply chassis angular offset to the encoder position to get the position
+		// // relative to the chassis.
+		// return new SwerveModulePosition(
+			// m_drivingEncoder.getPosition(),
+			// new Rotation2d(m_turningEncoder.getPosition() - m_chassisAngularOffset));
+	  // }
+
+	// {  For sending command to turn to steer position
+    // correctedDesiredState.angle = desiredState.angle.plus(Rotation2d.fromRadians(m_chassisAngularOffset));
+
+    // // Optimize the reference state to avoid spinning further than 90 degrees.
+    // SwerveModuleState optimizedDesiredState = SwerveModuleState.optimize(correctedDesiredState,
+        // new Rotation2d(m_turningEncoder.getPosition()));
+
+    // // Command driving and turning SPARKS MAX towards their respective setpoints.
+    // m_turningPIDController.setReference(optimizedDesiredState.angle.getRadians(), CANSparkMax.ControlType.kPosition);
+	// }
 
     enableLiveWindowInTest(false);
 

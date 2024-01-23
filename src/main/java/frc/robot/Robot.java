@@ -30,7 +30,7 @@ public class Robot extends TimedRobot {
   private static final double kSteerI = 0.00001;
   private static final double kSteerD = 0.0;
   private static final double kSteerIZone = 1.0;
-  private static final double kSteerMotorRotationsPerRevolution = 12.75;
+  private static final double kSteerMotorRotationsPerRevolution = 12.8;
 
   private CANSparkMax m_steerMotor;
   private CANCoder m_steerAbsoluteEncoder;

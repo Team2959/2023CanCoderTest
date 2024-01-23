@@ -4,6 +4,8 @@
 
 package frc.robot;
 
+import org.opencv.core.Mat;
+
 import com.ctre.phoenix.sensors.CANCoder;
 import com.revrobotics.CANSparkMax;
 import com.revrobotics.SparkMaxPIDController;
@@ -12,6 +14,7 @@ import com.revrobotics.CANSparkMax.IdleMode;
 
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
@@ -62,19 +65,15 @@ public class Robot extends TimedRobot {
     m_steerPIDController.setD(kSteerD);
     m_steerPIDController.setIZone(kSteerIZone);
 
-    m_steerEncoder.setPositionConversionFactor(2 * Math.PI / kSteerMotorRotationsPerRevolution);
+    // Enable PID wrap around for the turning motor. This will allow the PID
+    // controller to go through 0 to get to the setpoint i.e. going from 350 degrees
+    // to 10 degrees will go through 0 rather than the other direction which is a
+    // longer route.
+    m_steerPIDController.setPositionPIDWrappingEnabled(true);
+    m_steerPIDController.setPositionPIDWrappingMinInput(0);
+    m_steerPIDController.setPositionPIDWrappingMaxInput(2 * Math.PI);
 
-	// From REV Robotics MAX Swerve template code
-    // // Enable PID wrap around for the turning motor. This will allow the PID
-    // // controller to go through 0 to get to the setpoint i.e. going from 350 degrees
-    // // to 10 degrees will go through 0 rather than the other direction which is a
-    // // longer route.
-    // m_turningPIDController.setPositionPIDWrappingEnabled(true);
-    // public static final double kTurningEncoderPositionFactor = (2 * Math.PI); // radians
-    // public static final double kTurningEncoderPositionPIDMinInput = 0; // radians
-    // public static final double kTurningEncoderPositionPIDMaxInput = kTurningEncoderPositionFactor; // radians
-    // m_turningPIDController.setPositionPIDWrappingMinInput(ModuleConstants.kTurningEncoderPositionPIDMinInput);
-    // m_turningPIDController.setPositionPIDWrappingMaxInput(ModuleConstants.kTurningEncoderPositionPIDMaxInput);
+    m_steerEncoder.setPositionConversionFactor(2 * Math.PI / kSteerMotorRotationsPerRevolution);
 
 	// Related MAX Swerve for steer offset adjustment and optimization
 	  // public SwerveModulePosition getPosition() {
@@ -161,7 +160,12 @@ public class Robot extends TimedRobot {
     }
     else
     {
-      m_steerPIDController.setReference(m_targetAngleInRadians, CANSparkMax.ControlType.kPosition);
+      SwerveModuleState desiredState = new SwerveModuleState(0.0, Rotation2d.fromRadians(m_targetAngleInRadians));
+      SwerveModuleState optimizedDesiredState = SwerveModuleState.optimize(desiredState, new Rotation2d(m_steerEncoder.getPosition()));
+
+      // Command driving and turning SPARKS MAX towards their respective setpoints.
+      m_steerPIDController.setReference(optimizedDesiredState.angle.getRadians(), CANSparkMax.ControlType.kPosition);
+      // m_steerPIDController.setReference(m_targetAngleInRadians, CANSparkMax.ControlType.kPosition);
     }
   }
 

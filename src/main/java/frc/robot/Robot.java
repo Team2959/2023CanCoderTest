@@ -4,18 +4,20 @@
 
 package frc.robot;
 
-import org.opencv.core.Mat;
-
 import com.ctre.phoenix.sensors.CANCoder;
 import com.revrobotics.CANSparkMax;
+import com.revrobotics.CANSparkMax.IdleMode;
 import com.revrobotics.SparkMaxPIDController;
 import com.revrobotics.SparkMaxRelativeEncoder;
-import com.revrobotics.CANSparkMax.IdleMode;
 
 import edu.wpi.first.math.controller.PIDController;
 import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.geometry.Translation2d;
+import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import edu.wpi.first.math.kinematics.SwerveDriveKinematics;
 import edu.wpi.first.math.kinematics.SwerveModuleState;
 import edu.wpi.first.wpilibj.TimedRobot;
+import edu.wpi.first.wpilibj.XboxController;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 /**
@@ -43,13 +45,24 @@ public class Robot extends TimedRobot {
   private double m_targetAngleInRadians = 0.0;
   private boolean m_controlWithAbsoluteAngle = false;
 
+  private static final double kHalfTrackWidthMeters = 0.571 / 2.0;
+  private final Translation2d kFrontLeftLocation = new Translation2d(kHalfTrackWidthMeters, kHalfTrackWidthMeters);
+  private final Translation2d kFrontRightLocation = new Translation2d(kHalfTrackWidthMeters, -kHalfTrackWidthMeters);
+  private final Translation2d kBackLeftLocation = new Translation2d(-kHalfTrackWidthMeters, kHalfTrackWidthMeters);
+  private final Translation2d kBackRightLocation = new Translation2d(-kHalfTrackWidthMeters, -kHalfTrackWidthMeters);
+  private SwerveDriveKinematics m_kinematics;
+  private static final double kMaxSpeedMetersPerSecond = 4;
+
+  private XboxController m_Controller = new XboxController(0);
+
+  private double steerOffsetRRWheel = 4.304;
+ 
   /**
    * This function is run when the robot is first started up and should be used for any
    * initialization code.
    */
   @Override
   public void robotInit() {
-
     m_steerMotor = new CANSparkMax(11, CANSparkMax.MotorType.kBrushless);
     m_steerMotor.restoreFactoryDefaults();
     m_steerMotor.setIdleMode(IdleMode.kCoast);
@@ -75,6 +88,11 @@ public class Robot extends TimedRobot {
 
     m_steerEncoder.setPositionConversionFactor(2 * Math.PI / kSteerMotorRotationsPerRevolution);
 
+    m_kinematics = new SwerveDriveKinematics(kFrontLeftLocation, kFrontRightLocation, kBackLeftLocation,
+                kBackRightLocation);
+
+    setRelativeEncoderConversion();
+            
 	// Related MAX Swerve for steer offset adjustment and optimization
 	  // public SwerveModulePosition getPosition() {
 		// // Apply chassis angular offset to the encoder position to get the position
@@ -105,8 +123,6 @@ public class Robot extends TimedRobot {
     SmartDashboard.putNumber("Target Angle", 0);
 
     SmartDashboard.putBoolean("AE True/RE False", true);
-
-    SmartDashboard.putNumber("RE motor rotations to revolution", kSteerMotorRotationsPerRevolution);
   }
 
   /**
@@ -118,6 +134,8 @@ public class Robot extends TimedRobot {
    */
   @Override
   public void robotPeriodic() {
+    SmartDashboard.putNumber("Steer Relative Encoder", Rotation2d.fromRadians(m_steerEncoder.getPosition()).getDegrees());
+    SmartDashboard.putNumber("Steer Absolute Encoder", m_steerAbsoluteEncoder.getAbsolutePosition());
   }
 
   /**
@@ -142,13 +160,28 @@ public class Robot extends TimedRobot {
   }
 
   private void setRelativeEncoderConversion() {
-    double x = SmartDashboard.getNumber("RE motor rotations to revolution",kSteerMotorRotationsPerRevolution);
-    m_steerEncoder.setPositionConversionFactor(2 * Math.PI / x);
+    m_steerEncoder.setPositionConversionFactor(2 * Math.PI / kSteerMotorRotationsPerRevolution);
   }
+
+  private void computeCurrentRelativeEncoderAngle()
+  {
+    double absoluteInDegrees = m_steerAbsoluteEncoder.getAbsolutePosition();
+    double absoluteInRadians = Rotation2d.fromDegrees(absoluteInDegrees).getRadians();
+
+    double startingAngle = steerOffsetRRWheel - absoluteInRadians;
+
+    if (startingAngle < 0)
+    {
+      startingAngle = startingAngle + (2 * Math.PI);
+    }
+
+    m_steerEncoder.setPosition(startingAngle);
+  }
+
   /** This function is called periodically during autonomous. */
   @Override
   public void autonomousPeriodic() {
-    double absoluteInDegrees = (m_steerAbsoluteEncoder.getAbsolutePosition());
+    double absoluteInDegrees = m_steerAbsoluteEncoder.getAbsolutePosition();
     double absoluteInRadians = Rotation2d.fromDegrees(absoluteInDegrees).getRadians();
 
     SmartDashboard.putNumber("Steer Relative Encoder", Rotation2d.fromRadians(m_steerEncoder.getPosition()).getDegrees());
@@ -174,13 +207,36 @@ public class Robot extends TimedRobot {
   public void teleopInit() {
     m_steerMotor.set(0);
     setRelativeEncoderConversion();
+
+    computeCurrentRelativeEncoderAngle();
+
+    m_steerPIDController.setReference(0, CANSparkMax.ControlType.kPosition);
   }
 
   /** This function is called periodically during operator control. */
   @Override
   public void teleopPeriodic() {
-    SmartDashboard.putNumber("Steer Relative Encoder", Rotation2d.fromRadians(m_steerEncoder.getPosition()).getDegrees());
-    SmartDashboard.putNumber("Steer Absolute Encoder", m_steerAbsoluteEncoder.getAbsolutePosition());  
+
+    // We getY() here because of the FRC coordinate system being turned 90 degrees
+    var xMetersPerSecond = -m_Controller.getLeftY() * kMaxSpeedMetersPerSecond;
+    // We getX() here becasuse of the FRC coordinate system being turned 90 
+    var yMetersPerSecond = -m_Controller.getLeftX() * kMaxSpeedMetersPerSecond;
+
+    SwerveModuleState[] states = m_kinematics.toSwerveModuleStates(
+      new ChassisSpeeds(xMetersPerSecond, yMetersPerSecond, 0));
+    // SwerveModuleState[] states = m_kinematics.toSwerveModuleStates(fieldRelative
+    //             ? ChassisSpeeds.fromFieldRelativeSpeeds(xMetersPerSecond, yMetersPerSecond, rotationRadiansPerSecond,
+    //                     getAngle())
+    //             : new ChassisSpeeds(xMetersPerSecond, yMetersPerSecond, rotationRadiansPerSecond));
+
+    SwerveDriveKinematics.desaturateWheelSpeeds(states, kMaxSpeedMetersPerSecond);
+
+    var frontLeftState = states[0];
+
+    SwerveModuleState state = SwerveModuleState.optimize(frontLeftState,
+      new Rotation2d(m_steerEncoder.getPosition()));
+
+    m_steerPIDController.setReference(state.angle.getRadians(), CANSparkMax.ControlType.kPosition);
   }
 
   /** This function is called once when the robot is disabled. */

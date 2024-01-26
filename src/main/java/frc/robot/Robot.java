@@ -70,9 +70,10 @@ public class Robot extends TimedRobot {
     m_steerAbsoluteEncoder = new CANCoder(1);
 
     m_steerEncoder = (SparkMaxRelativeEncoder) m_steerMotor.getEncoder();
-    m_steerPIDController = m_steerMotor.getPIDController();
 
+    m_steerPIDController = m_steerMotor.getPIDController();
     m_steerPIDController.setFeedbackDevice(m_steerEncoder);
+
     m_steerPIDController.setP(kSteerP);
     m_steerPIDController.setI(kSteerI);
     m_steerPIDController.setD(kSteerD);
@@ -86,12 +87,8 @@ public class Robot extends TimedRobot {
     m_steerPIDController.setPositionPIDWrappingMinInput(0);
     m_steerPIDController.setPositionPIDWrappingMaxInput(2 * Math.PI);
 
-    m_steerEncoder.setPositionConversionFactor(2 * Math.PI / kSteerMotorRotationsPerRevolution);
-
     m_kinematics = new SwerveDriveKinematics(kFrontLeftLocation, kFrontRightLocation, kBackLeftLocation,
                 kBackRightLocation);
-
-    setRelativeEncoderConversion();
             
 	// Related MAX Swerve for steer offset adjustment and optimization
 	  // public SwerveModulePosition getPosition() {
@@ -122,7 +119,10 @@ public class Robot extends TimedRobot {
 
     SmartDashboard.putNumber("Target Angle", 0);
 
-    SmartDashboard.putBoolean("AE True/RE False", true);
+    SmartDashboard.putBoolean("AE True/RE False", false);
+
+    setRelativeEncoderConversion();
+    computeCurrentRelativeEncoderAngle();
   }
 
   /**
@@ -165,8 +165,7 @@ public class Robot extends TimedRobot {
 
   private void computeCurrentRelativeEncoderAngle()
   {
-    double absoluteInDegrees = m_steerAbsoluteEncoder.getAbsolutePosition();
-    double absoluteInRadians = Rotation2d.fromDegrees(absoluteInDegrees).getRadians();
+    double absoluteInRadians = Rotation2d.fromDegrees(m_steerAbsoluteEncoder.getAbsolutePosition()).getRadians();
 
     double startingAngle = steerOffsetRRWheel - absoluteInRadians;
 
@@ -174,6 +173,8 @@ public class Robot extends TimedRobot {
     {
       startingAngle = startingAngle + (2 * Math.PI);
     }
+
+    startingAngle = 2 * Math.PI - startingAngle;
 
     m_steerEncoder.setPosition(startingAngle);
   }
@@ -184,8 +185,6 @@ public class Robot extends TimedRobot {
     double absoluteInDegrees = m_steerAbsoluteEncoder.getAbsolutePosition();
     double absoluteInRadians = Rotation2d.fromDegrees(absoluteInDegrees).getRadians();
 
-    SmartDashboard.putNumber("Steer Relative Encoder", Rotation2d.fromRadians(m_steerEncoder.getPosition()).getDegrees());
-    SmartDashboard.putNumber("Steer Absolute Encoder", absoluteInDegrees);  
     if (m_controlWithAbsoluteAngle)
     {
       double raw = m_absoluteAngleController.calculate(absoluteInRadians);
@@ -252,15 +251,11 @@ public class Robot extends TimedRobot {
   public void testInit() {
     m_steerMotor.set(0);
     m_steerEncoder.setPositionConversionFactor(1.0);
-    m_steerEncoder.setPosition(0);
   }
 
   /** This function is called periodically during test mode. */
   @Override
   public void testPeriodic() {
-    SmartDashboard.putNumber("Steer Relative Encoder", m_steerEncoder.getPosition());
-    SmartDashboard.putNumber("Steer Absolute Encoder", m_steerAbsoluteEncoder.getAbsolutePosition());  
-
     if (SmartDashboard.getBoolean("Reset Relative Encoder", false))
     {
       m_steerEncoder.setPosition(0);
